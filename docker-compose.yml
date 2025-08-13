@@ -1,0 +1,74 @@
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: takzir-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: takzir_admin
+      MONGO_INITDB_ROOT_PASSWORD: military_maintenance_2025
+      MONGO_INITDB_DATABASE: military-maintenance
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d
+    networks:
+      - takzir-network
+
+  takzir-backend:
+    build:
+      context: .  # Current directory (Takzir_Backend)
+      dockerfile: Dockerfile
+    container_name: takzir-backend
+    restart: always
+    depends_on:
+      - mongodb
+    environment:
+      NODE_ENV: production
+      MONGODB_URI: mongodb://takzir_admin:military_maintenance_2025@takzir-mongodb:27017/military-maintenance?authSource=admin
+      SESSION_SECRET: military-maintenance-docker-secret-2025
+      FRONTEND_URL: http://localhost:3001
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - takzir-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  takzir-frontend:
+    build:
+      context: ../Takzir_Frontend  # Go up one level, then into Frontend
+      dockerfile: Dockerfile
+    container_name: takzir-frontend
+    restart: always
+    depends_on:
+      takzir-backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      BACKEND_URL: http://takzir-backend:3000
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    networks:
+      - takzir-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  takzir-network:
+    driver: bridge
