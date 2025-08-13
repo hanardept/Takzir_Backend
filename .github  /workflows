@@ -1,0 +1,67 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - '**'
+
+env:
+  PROJECT_ID: hanaref-backend-462009
+  SERVICE: hanaref-backend
+  REGION: europe-west4
+
+jobs:
+  deploy_cloud_run:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - uses: 'actions/checkout@v4'
+
+      - name: Run docker-compose and API tests
+        run: |
+          docker compose up --build --abort-on-container-exit --exit-code-from api-tests
+        working-directory: ${{ github.workspace }}
+
+      - name: Copy test report from api-tests container
+        run: |
+          docker cp hanaref-api-tests:/app/results/test-report.html ./test-report.html
+
+      - name: Upload test report artifact
+        id: upload_test_report
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-report
+          path: ./test-report.html
+
+      - name: Add link to test report in summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.summary.addRaw(
+              `<h3>API Test Report</h3>
+              <a href="${{ steps.upload_test_report.outputs.artifact-url }}">Download HTML Report</a>`
+            ).write()        
+
+      - uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: "${{ secrets.GCP_GH_SVC_ACCOUNT_CREDS }}"
+
+      - id: 'deploy'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          service: ${{ github.ref == 'refs/heads/main' && 'hanaref-backend' || (github.ref == 'refs/heads/development' && 'hanaref-backend-dev') }}
+          region: ${{ env.REGION }}
+          source: ./
+          # Set different environment variables or parameters based on branch
+          # (optional, if you want to distinguish between prod/dev)
+
+      - name: 'Use output'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
+        run: 'curl "${{ steps.deploy.outputs.url }}"'
+
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || (github.ref == 'refs/heads/development' && 'development') }}
