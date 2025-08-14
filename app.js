@@ -84,7 +84,7 @@ const limiter = rateLimit({
   message: {
     success: false,
     message: 'יותר מדי בקשות, נסה שוב מאוחר יותר'
-  }
+  },
 });
 app.use('/api/', limiter);
 
@@ -98,6 +98,8 @@ const authLimiter = rateLimit({
   }
 });
 app.use('/api/auth/login', authLimiter);
+
+app.set('trust proxy', true);
 
 // Route imports
 const authRoutes = require('./routes/auth');
