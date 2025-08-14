@@ -99,7 +99,7 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // Route imports
 const authRoutes = require('./routes/auth');
