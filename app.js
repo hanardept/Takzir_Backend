@@ -17,7 +17,11 @@ connectDB();
 
 // CORS configuration - MUST BE FIRST (before any other middleware)
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+   origin: [
+    'http://localhost:3001', // Keep for development
+    'https:/takzir-95a86.web.app',
+    'https://takzir-95a86.firebaseapp.com'
+  ],
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
