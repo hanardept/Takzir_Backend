@@ -54,7 +54,7 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development'
         uses: 'google-github-actions/deploy-cloudrun@v2'
         with:
-          service: ${{ github.ref == 'refs/heads/main' && 'hanaref-backend' || (github.ref == 'refs/heads/development' && 'hanaref-backend-dev') }}
+          service: ${{ github.ref == 'refs/heads/main' && 'takzir-backend' || (github.ref == 'refs/heads/development' && 'takzir-backend-dev') }}
           region: ${{ env.REGION }}
           source: ./
           # Set different environment variables or parameters based on branch
