@@ -29,13 +29,13 @@ app.use(cors({
 }));
 
 // Handle preflight requests explicitly
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:3001');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
-});
+// app.options('*', (req, res) => {
+//   res.header('Access-Control-Allow-Origin', 'http://localhost:3001');
+//   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+//   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie');
+//   res.header('Access-Control-Allow-Credentials', 'true');
+//   res.sendStatus(200);
+// });
 
 // Body parsing middleware (after CORS)
 app.use(express.json({ limit: '10mb' }));
