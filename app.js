@@ -19,7 +19,7 @@ connectDB();
 app.use(cors({
    origin: [
     'http://localhost:3001', // Keep for development
-    'https:/takzir-95a86.web.app',
+    'https://takzir-95a86.web.app',
     'https://takzir-95a86.firebaseapp.com'
   ],
   credentials: true,
