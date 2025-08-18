@@ -19,7 +19,7 @@ const commentSchema = new mongoose.Schema({
 const ticketSchema = new mongoose.Schema({
   ticketNumber: {
     type: Number,
-    required: true,
+    // required: true,
     unique: true
   },
   command: {
@@ -94,20 +94,23 @@ const ticketSchema = new mongoose.Schema({
 ticketSchema.pre('save', async function(next) {
   if (this.isNew && !this.ticketNumber) {
     try {
-      const lastTicket = await this.constructor.findOne(
-        { ticketNumber: { $exists: true } },
-        { ticketNumber: 1 },
-        { sort: { ticketNumber: -1 } }
-      );
+      console.log('Auto-generating ticketNumber...')
+      const lastTicket = await this.constructor.findOne().sort({ ticketNumber: -1 }).lean();
       
-      this.ticketNumber = lastTicket ? lastTicket.ticketNumber + 1 : 5336;
-      next();
+      let nextNumber = 1;
+      if (lastTicket && lastTicket.ticketNumber) {
+        nextNumber = lastTicket.ticketNumber + 1;
+      }
+      
+      console.log('Generated ticketNumber:', nextNumber);
+      this.ticketNumber = nextNumber;
+      
     } catch (error) {
-      next(error);
+      console.error('Error generating ticketNumber:', error);
+      return next(error);
     }
-  } else {
-    next();
   }
+  next();
 });
 
 // Update closeDate when status changes to 'תוקן'

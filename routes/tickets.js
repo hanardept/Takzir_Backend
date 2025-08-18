@@ -316,15 +316,20 @@ router.get('/:id', auth, async (req, res) => {
 
 // Create new ticket
 router.post('/', auth, rbac('technician'), [
-  body('command').trim().notEmpty().withMessage('פיקוד הוא שדה חובה'),
-  body('unit').trim().notEmpty().withMessage('יחידה היא שדה חובה'),
+  body('command').optional().trim().notEmpty().withMessage('פיקוד הוא שדה חובה'),
+  body('unit').optional().trim().notEmpty().withMessage('יחידה היא שדה חובה'),
   body('priority').isIn(['רגילה', 'דחופה', 'מבצעית']).withMessage('עדיפות לא תקינה'),
   body('description').trim().isLength({ min: 5, max: 2000 }).withMessage('תיאור חייב להיות בין 5-2000 תווים'),
   body('isRecurring').optional().isBoolean().withMessage('תקלה חוזרת חייבת להיות כן/לא')
 ], async (req, res) => {
   try {
+    console.log('=== BACKEND CREATE TICKET DEBUG ===');
+    console.log('Request body:', req.body);
+    console.log('User:', req.user);
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ 
         success: false, 
         message: 'נתונים לא תקינים',
@@ -332,19 +337,62 @@ router.post('/', auth, rbac('technician'), [
       });
     }
     
-    const { command, unit, priority, description, isRecurring } = req.body;
+    // Handle field mapping between frontend and backend
+    const { subject, command, unit, priority, description, isRecurring } = req.body;
     
-    const ticket = new Ticket({
-      command: command.trim(),
-      unit: unit.trim(),
+    // Use user's command and unit if not provided
+    const ticketCommand = command || req.user.command;
+    const ticketUnit = unit || req.user.unit;
+    
+    // FIXED: Auto-generate ticket number with proper async handling
+    let nextNumber = 1;
+    
+    try {
+      const lastTicket = await Ticket.findOne().sort({ ticketNumber: -1 });
+      console.log('Last ticket found:', lastTicket);
+      
+      if (lastTicket && lastTicket.ticketNumber) {
+        // Handle different ticketNumber formats
+        const ticketNumberStr = lastTicket.ticketNumber.toString();
+        const numbers = ticketNumberStr.match(/\d+/);
+        
+        if (numbers && numbers.length > 0) {
+          const lastNumber = parseInt(numbers[0]);
+          if (!isNaN(lastNumber)) {
+            nextNumber = lastNumber + 1;
+          }
+        }
+      }
+    } catch (findError) {
+      console.error('Error finding last ticket:', findError);
+      // Continue with nextNumber = 1
+    }
+    
+    console.log('Generated ticket number:', nextNumber);
+    
+    // Create ticket object with all required fields
+    const ticketData = {
+      ticketNumber: nextNumber, // CRITICAL: Set this before creating the Ticket
+      command: ticketCommand,
+      unit: ticketUnit,
       priority,
       description: description.trim(),
+      subject: subject ? subject.trim() : description.trim().substring(0, 100),
       isRecurring: isRecurring || false,
+      status: 'פתוח',
       createdBy: req.user.username,
       openDate: new Date()
-    });
+    };
     
+    console.log('Ticket data before save:', ticketData);
+    console.log('ticketNumber type:', typeof ticketData.ticketNumber);
+    console.log('ticketNumber value:', ticketData.ticketNumber);
+    
+    // Create and save ticket
+    const ticket = new Ticket(ticketData);
     await ticket.save();
+    
+    console.log('Ticket saved successfully:', ticket.ticketNumber);
     
     res.status(201).json({ 
       success: true, 
@@ -356,7 +404,8 @@ router.post('/', auth, rbac('technician'), [
     console.error('Create ticket error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'שגיאה ביצירת התקלה' 
+      message: 'שגיאה ביצירת התקלה',
+      error: error.message
     });
   }
 });
