@@ -6,67 +6,126 @@ const { rbac, canAccessTicket } = require('../middleware/rbac');
 const { generateExcel } = require('../utils/excel');
 const router = express.Router();
 
-// Dashboard statistics endpoint
+// Debug middleware
+router.use((req, res, next) => {
+  console.log('=== TICKETS API DEBUG ===', {
+    method: req.method,
+    path: req.path,
+    user: req.session?.user?.username || 'unauthenticated',
+    sessionId: req.session?.id || 'none',
+  });
+  next();
+});
+
+// Make sure you have these routes:
+// GET /api/tickets/stats  -> numeric dashboard stats
+// GET /api/tickets/stats -> single authoritative stats endpoint
 router.get('/stats', auth, async (req, res) => {
   try {
-    // Build filter based on user role
-    let filter = { isDeleted: false };
-    
-    if (req.user.role !== 'admin') {
-      filter.command = req.user.command;
-      if (req.user.role === 'viewer') {
-        filter.unit = req.user.unit;
-      }
-    }
-    
-    // Get statistics using aggregation
-    const stats = await Ticket.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          totalTickets: { $sum: 1 },
-          openTickets: { 
-            $sum: { $cond: [{ $eq: ['$status', 'פתוח'] }, 1, 0] } 
-          },
-          inProgressTickets: { 
-            $sum: { $cond: [{ $eq: ['$status', 'בטיפול'] }, 1, 0] } 
-          },
-          closedTickets: { 
-            $sum: { $cond: [{ $eq: ['$status', 'תוקן'] }, 1, 0] } 
-          },
-          highPriorityTickets: { 
-            $sum: { $cond: [{ $eq: ['$priority', 'מבצעית'] }, 1, 0] } 
-          },
-          recurringTickets: { 
-            $sum: { $cond: [{ $eq: ['$isRecurring', true] }, 1, 0] } 
-          }
-        }
-      }
-    ]);
+    // If your DB stores closed as 'תוקן', set CLOSED_STATUS accordingly:
+    const CLOSED_STATUS = 'סגור'; // or 'תוקן'
 
-    const result = stats[0] || {
-      totalTickets: 0,
-      openTickets: 0,
-      inProgressTickets: 0,
-      closedTickets: 0,
-      highPriorityTickets: 0,
-      recurringTickets: 0
+    // Optional role scoping (uncomment if you want to restrict by user role)
+    // let scope = { isDeleted: false };
+    // if (req.user.role !== 'admin') {
+    //   scope.command = req.user.command;
+    //   if (req.user.role === 'viewer') scope.unit = req.user.unit;
+    // }
+
+    // If using simple counts (fast and clear):
+    const total       = await Ticket.countDocuments({ isDeleted: false });
+    const open        = await Ticket.countDocuments({ status: 'פתוח', isDeleted: false });
+    const inProgress  = await Ticket.countDocuments({ status: 'בטיפול', isDeleted: false });
+    const closed      = await Ticket.countDocuments({ status: CLOSED_STATUS, isDeleted: false });
+    const operational = await Ticket.countDocuments({ priority: 'מבצעית', isDeleted: false });
+    const urgent      = await Ticket.countDocuments({ priority: 'דחופה',  isDeleted: false });
+    const recurring   = await Ticket.countDocuments({ isRecurring: true,   isDeleted: false });
+
+    const data = {
+      // short keys
+      total, open, inProgress, closed, operational, urgent,
+      // legacy/long keys (for compatibility)
+      totalTickets: total,
+      openTickets: open,
+      inProgressTickets: inProgress,
+      closedTickets: closed,
+      highPriorityTickets: operational,
+      recurringTickets: recurring,
     };
-
-    res.json({
-      success: true,
-      data: result
-    });
-    
+    return res.json({ success: true, data });
   } catch (error) {
-    console.error('Get ticket stats error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'שגיאה בטעינת הסטטיסטיקות' 
-    });
+    console.error('Stats error:', error);
+    return res.status(500).json({ success: false, message: 'שגיאה בטעינת הסטטיסטיקות' });
   }
 });
+
+// GET /api/tickets/recent?limit=10  -> recent tickets for dashboard
+router.get('/recent', auth, [
+  query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('מספר תוצאות לא תקין'),
+], async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const recent = await Ticket.find({ isDeleted: false })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .select('ticketNumber subject command unit priority status description openDate isRecurring createdBy')
+      .lean();
+    return res.json({ success: true, data: recent });
+  } catch (error) {
+    console.error('Get recent tickets error:', error);
+    return res.status(500).json({ success: false, message: 'שגיאה בטעינת התקלות האחרונות' });
+  }
+});
+
+// POST /api/tickets  -> create
+router.post('/', auth, rbac('technician'), [
+  body('priority').isIn(['רגילה', 'דחופה', 'מבצעית']).withMessage('עדיפות לא תקינה'),
+  body('description').trim().isLength({ min: 5, max: 2000 }).withMessage('תיאור חייב להיות בין 5-2000 תווים'),
+  body('isRecurring').optional().isBoolean().withMessage('תקלה חוזרת חייבת להיות כן/לא'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: 'נתונים לא תקינים', errors: errors.array() });
+    }
+
+    const { subject, command, unit, priority, description, isRecurring } = req.body;
+    const ticketCommand = command || req.user.command;
+    const ticketUnit = unit || req.user.unit;
+
+    // Generate next ticket number safely
+    let nextNumber = 1;
+    const lastTicket = await Ticket.findOne().sort({ ticketNumber: -1 }).lean();
+    if (lastTicket?.ticketNumber) {
+      const m = String(lastTicket.ticketNumber).match(/\d+/);
+      if (m) nextNumber = parseInt(m, 10) + 1;
+    }
+
+    const ticket = await Ticket.create({
+      ticketNumber: nextNumber,
+      command: ticketCommand,
+      unit: ticketUnit,
+      priority,
+      description: description.trim(),
+      subject: subject ? subject.trim() : description.trim().substring(0, 100),
+      isRecurring: !!isRecurring,
+      status: 'פתוח',
+      createdBy: req.user.username,
+      openDate: new Date(),
+    });
+
+    return res.status(201).json({ success: true, message: 'תקלה נוצרה בהצלחה', data: ticket });
+  } catch (error) {
+    console.error('Create ticket error:', error);
+    return res.status(500).json({ success: false, message: 'שגיאה ביצירת התקלה', error: error.message });
+  }
+});
+
+// Keep your PUT /:id, POST /:id/comments, DELETE /:id, and export endpoints here…
+// Make sure every handler has a try/catch and returns JSON on error.
+
+module.exports = router;
+
 
 // Dashboard recent tickets endpoint
 router.get('/recent', auth, [
@@ -242,8 +301,8 @@ router.get('/', auth, [
       .sort(sort)
       .skip(skip)
       .limit(limit)
-      .select('-comments'); // Exclude comments from list view
-    
+      .select( 'ticketNumber subject command unit priority status description openDate closeDate assignedTechnician isRecurring createdBy');
+
     res.json({
       success: true,
       data: {

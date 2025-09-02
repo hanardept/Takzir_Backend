@@ -22,6 +22,13 @@ const ticketSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+   subject: { 
+    type: String,
+    required: true,
+    trim: true,
+    minlength: 3,
+    maxlength: 200
+  },
   command: {
     type: String,
     required: true,

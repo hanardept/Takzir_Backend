@@ -7,20 +7,30 @@ const connectDB = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000, // ← Increase from 5000
       socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000, // ← Add this
+      heartbeatFrequencyMS: 2000, // ← Add this for better connection monitoring
     });
 
     console.log(`MongoDB Atlas מחובר: ${conn.connection.host}`);
     
-    // Create indexes for performance
-    await createIndexes();
+    // Add connection error handlers
+    mongoose.connection.on('error', (error) => {
+      console.error('MongoDB connection error:', error);
+    });
     
+    mongoose.connection.on('disconnected', () => {
+      console.warn('MongoDB disconnected');
+    });
+
+    await createIndexes();
   } catch (error) {
     console.error('שגיאה בחיבור למסד הנתונים:', error.message);
     process.exit(1);
   }
 };
+
 
 const createIndexes = async () => {
   try {
