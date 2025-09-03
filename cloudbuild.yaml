@@ -1,0 +1,26 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}', '.']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}']
+  
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=gcr.io/$PROJECT_ID/${_SERVICE_NAME}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars=NODE_ENV=${_NODE_ENV},MONGODB_URI=${_MONGODB_URI},SESSION_SECRET=${_SESSION_SECRET},FRONTEND_URLS=${_FRONTEND_URLS}'
+
+substitutions:
+  _SERVICE_NAME: ${BRANCH_NAME == 'main' ? 'takzir-backend' : 'takzir-backend-dev'}
+  _REGION: europe-west4
+  _NODE_ENV: ${BRANCH_NAME == 'main' ? 'production' : 'development'}
+  _MONGODB_URI: ${BRANCH_NAME == 'main' ? '${_PROD_MONGODB_URI}' : '${_DEV_MONGODB_URI}'}
+  _SESSION_SECRET: ${BRANCH_NAME == 'main' ? '${_PROD_SESSION_SECRET}' : '${_DEV_SESSION_SECRET}'}
+  _FRONTEND_URLS: ${BRANCH_NAME == 'main' ? 'https://takzir-95a86.web.app' : 'https://takzir-95a86--development-*.web.app'}

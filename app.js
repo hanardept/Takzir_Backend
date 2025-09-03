@@ -25,7 +25,27 @@ const FRONTEND_URLS = [
   'http://localhost:3001',
   'https://takzir-95a86.web.app',
   'https://takzir-95a86.firebaseapp.com',
+  'https://takzir-95a86--development-*.web.app'
 ];
+
+app.use(
+  cors({
+    origin: function(origin, callback) {
+      // Allow Firebase preview channels
+      if (!origin || 
+          FRONTEND_URLS.includes(origin) || 
+          /^https:\/\/takzir-95a86--[\w-]+\.web\.app$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
 // Your public backend URL on Cloud Run (optional but good for CSP connectSrc)
 const BACKEND_PUBLIC_URL = process.env.BACKEND_PUBLIC_URL || ''; // e.g., https://takzir-backend-xxxxx-europe-west4.run.app
