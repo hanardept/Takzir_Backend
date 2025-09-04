@@ -18,7 +18,7 @@ const app = express();
 connectDB();
 
 // -------- Environment helpers --------
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'development';
 
 // Frontend origins (adjust if you add a custom domain)
 const FRONTEND_URLS = [
