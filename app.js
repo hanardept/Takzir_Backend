@@ -50,17 +50,6 @@ app.use(
 // Your public backend URL on Cloud Run (optional but good for CSP connectSrc)
 const BACKEND_PUBLIC_URL = process.env.BACKEND_PUBLIC_URL || ''; // e.g., https://takzir-backend-xxxxx-europe-west4.run.app
 
-// -------- CORS (FIRST) --------
-app.use(
-  cors({
-    origin: FRONTEND_URLS,
-    credentials: true,
-    optionsSuccessStatus: 200,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
-
 // Explicit preflight
 app.options('*', (req, res) => {
   const origin = req.headers.origin;
