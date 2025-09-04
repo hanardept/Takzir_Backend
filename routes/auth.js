@@ -27,7 +27,6 @@ router.post('/login', [
     // Single user lookup
     const user = await User.findOne({
       username: username.trim(),
-      isActive: true
     });
     console.log('Found user document:', user);
 
