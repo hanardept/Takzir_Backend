@@ -24,8 +24,9 @@ router.post('/login', [
     
     const user = await User.findOne({ 
       username: username.trim(),
-      isActive: true 
+      isActive: true,
     });
+    console.log('Found user document:', user);
     
     if (!user) {
       return res.status(401).json({ 
@@ -34,6 +35,10 @@ router.post('/login', [
       });
     }
     
+// Before comparing password:
+    console.log('Comparing password for user:', user.username);
+    console.log('Stored hash:', user.password);
+
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
       return res.status(401).json({ 
