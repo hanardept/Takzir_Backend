@@ -11,47 +11,52 @@ router.post('/login', [
 ], async (req, res) => {
   try {
     console.log('Login attempt:', { username: req.body.username, password: req.body.password });
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         message: 'נתונים לא תקינים',
         errors: errors.array()
       });
     }
 
     const { username, password } = req.body;
-    
-    const user = await User.findOne({ 
+    console.info('Login attempt payload:', req.body);
+
+    // Single user lookup
+    const user = await User.findOne({
       username: username.trim(),
-      isActive: true,
+      isActive: true
     });
     console.log('Found user document:', user);
-    
+
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'שם משתמש או סיסמה שגויים' 
+      // No matching active user found
+      return res.status(401).json({
+        success: false,
+        message: 'שם משתמש או סיסמה שגויים'
       });
     }
-    
-// Before comparing password:
+
+    // Before comparing password
     console.log('Comparing password for user:', user.username);
     console.log('Stored hash:', user.password);
-
     const isValidPassword = await user.comparePassword(password);
+    console.info('Password match result:', isValidPassword);
+
     if (!isValidPassword) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'שם משתמש או סיסמה שגויים' 
+      // Password did not match
+      return res.status(401).json({
+        success: false,
+        message: 'שם משתמש או סיסמה שגויים'
       });
     }
-    
-    // Update last login
+
+    // Update last login and save session
     user.lastLogin = new Date();
     await user.save();
-    
-    // Create session
+
     req.session.user = {
       id: user._id,
       username: user.username,
@@ -59,21 +64,22 @@ router.post('/login', [
       command: user.command,
       unit: user.unit
     };
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'התחברות בוצעה בהצלחה',
       user: req.session.user
     });
-    
+
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'שגיאה בהתחברות למערכת' 
+    res.status(500).json({
+      success: false,
+      message: 'שגיאה בהתחברות למערכת'
     });
   }
 });
+
 
 // Logout
 router.post('/logout', auth, (req, res) => {
