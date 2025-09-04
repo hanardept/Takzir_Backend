@@ -10,6 +10,7 @@ router.post('/login', [
   body('password').isLength({ min: 6 }).withMessage('סיסמה חייבת להיות לפחות 6 תווים')
 ], async (req, res) => {
   try {
+    console.log('Login attempt:', { username: req.body.username, password: req.body.password });
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
