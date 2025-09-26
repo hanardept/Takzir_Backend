@@ -25,7 +25,8 @@ const FRONTEND_URLS = [
   'http://localhost:3001',
   'https://takzir-95a86.web.app',
   'https://takzir-95a86.firebaseapp.com',
-  'https://takzir-95a86--development-*.web.app'
+  'https://takzir-95a86--development-*.web.app',
+  'https://takzir-95a86--*.web.app'
 ];
 
 app.use(
